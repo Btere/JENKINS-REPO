@@ -2,10 +2,36 @@ pipeline {
     agent any
 
     stages {
-        stage('Hello') {
+        stage('Build') {
             steps {
-                echo 'Hello World'
+                echo 'Building the project...'
+                sh 'mkdir -p build'
+                sh 'echo "Build complete" > build/output.txt'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo 'Running tests...'
+                sh 'echo "All tests passed"'
+            }
+        }
+
+        stage('Package') {
+            steps {
+                echo 'Packaging artifacts...'
+                sh 'tar -czf build.tar.gz build'
             }
         }
     }
+
+    post {
+        success {
+            archiveArtifacts artifacts: 'build.tar.gz'
+        }
+        always {
+            cleanWs()
+        }
+    }
 }
+
