@@ -5,8 +5,10 @@ pipeline {
         stage('Build') {
             steps {
                 echo 'Building the project...'
-                sh 'mkdir -p build'
-                sh 'echo "Build complete" > build/output.txt'
+                sh '''
+                    mkdir -p build
+                    echo "Build complete" > build/output.txt
+                '''
             }
         }
 
@@ -20,13 +22,18 @@ pipeline {
         stage('Package') {
             steps {
                 echo 'Packaging artifacts...'
-                sh 'tar -czf build.tar.gz build'
+                sh '''
+                    ls -la
+                    tar -czf build.tar.gz build
+                    ls -la
+                '''
             }
         }
     }
 
     post {
         success {
+            echo 'Archiving artifacts...'
             archiveArtifacts artifacts: 'build.tar.gz'
         }
         always {
@@ -34,4 +41,3 @@ pipeline {
         }
     }
 }
-
