@@ -1,0 +1,36 @@
+pipeline {
+    agent any
+
+    triggers {
+        cron('H 2 * * *')
+    }
+
+    environment {
+        APP_NAME = "safe-pipeline"
+        ENV     = "qa"
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Sanity Check') {
+            steps {
+                echo "Pipeline is running for ${APP_NAME} in ${ENV}"
+                sh 'echo "Jenkins pipeline works!"'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Build successful"
+        }
+        failure {
+            echo "❌ Build failed"
+        }
+    }
+}
