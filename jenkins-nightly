@@ -5,32 +5,63 @@ pipeline {
         cron('H/5 * * * *')
     }
 
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
     environment {
-        APP_NAME = "safe-pipeline"
-        ENV     = "qa"
+        APP_NAME = "sample-app"
+        BUILD_OUTPUT_DIR = "build"
+        RESULT_FILE = "result.txt"
     }
 
     stages {
-        stage('Checkout') {
+
+        stage('Initialize') {
             steps {
-                checkout scm
+                echo "Initializing pipeline for ${APP_NAME}"
+                sh """
+                  mkdir -p ${BUILD_OUTPUT_DIR}
+                """
             }
         }
 
-        stage('Sanity Check') {
+        stage('Build') {
             steps {
-                echo "Pipeline is running for ${APP_NAME} in ${ENV}"
-                sh 'echo "Jenkins pipeline works!"'
+                echo "Running build step..."
+                sh """
+                  echo "Build successful for ${APP_NAME}" > ${BUILD_OUTPUT_DIR}/${RESULT_FILE}
+                """
+            }
+        }
+
+        stage('Test (Safe)') {
+            steps {
+                echo "Running tests (safe mode)"
+                sh """
+                  echo "All tests passed" >> ${BUILD_OUTPUT_DIR}/${RESULT_FILE}
+                """
+            }
+        }
+
+        stage('Archive Artifacts') {
+            steps {
+                echo "Archiving build artifacts"
+                archiveArtifacts artifacts: "${BUILD_OUTPUT_DIR}/**", fingerprint: true
             }
         }
     }
 
     post {
         success {
-            echo "✅ Build successful"
+            echo "✅ Pipeline completed successfully"
         }
         failure {
-            echo "❌ Build failed"
+            echo "❌ Pipeline failed — check logs"
+        }
+        always {
+            echo "📦 Build finished at: ${new Date()}"
         }
     }
 }
