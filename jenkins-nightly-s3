@@ -3,9 +3,19 @@ pipeline {
 
     environment {
         AWS_DEFAULT_REGION = 'eu-west-1'
+        S3_BUCKET = 'my-jenkins-bucket'
     }
 
     stages {
+        stage('Create File') {
+            steps {
+                sh '''
+                    mkdir -p build
+                    echo "Hello from Jenkins" > build/output.txt
+                '''
+            }
+        }
+
         stage('Upload to S3') {
             steps {
                 withCredentials([[
@@ -13,11 +23,17 @@ pipeline {
                     credentialsId: 'aws-jenkins'
                 ]]) {
                     sh '''
-                        aws s3 ls
-                        aws s3 cp build.tar.gz s3://my-jenkins-bucket/builds/build-${BUILD_NUMBER}.tar.gz
+                        aws s3 cp build/output.txt \
+                        s3://$S3_BUCKET/builds/output-${BUILD_NUMBER}.txt
                     '''
                 }
             }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
         }
     }
 }
