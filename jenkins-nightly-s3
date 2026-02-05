@@ -1,0 +1,23 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_DEFAULT_REGION = 'eu-west-1'
+    }
+
+    stages {
+        stage('Upload to S3') {
+            steps {
+                withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-jenkins'
+                ]]) {
+                    sh '''
+                        aws s3 ls
+                        aws s3 cp build.tar.gz s3://my-jenkins-bucket/builds/build-${BUILD_NUMBER}.tar.gz
+                    '''
+                }
+            }
+        }
+    }
+}
