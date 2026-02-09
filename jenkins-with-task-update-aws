@@ -1,0 +1,75 @@
+pipeline {
+    agent any
+
+    triggers{
+        cron('H/5 * * * *')
+    }
+
+    environment {
+        AWS_REGION      = 'eu-west-1'
+        S3_BUCKET       = 'my-ecs-task-definitions'
+        TASK_CPU        = '512'
+        TASK_MEMORY     = '1024'
+        APP_ENV         = 'staging'
+        APP_VERSION     = "${BUILD_NUMBER}"
+        ECR_IMAGE       = "123456789012.dkr.ecr.eu-west-1.amazonaws.com/my-app:${BUILD_NUMBER}"
+        TASK_FILE       = 'task-definition.yaml'
+        OUTPUT_FILE     = "task-definition-${BUILD_NUMBER}.yaml"
+    }
+
+    stages {
+
+        stage('Prepare Task Definition') {
+            steps {
+                sh '''
+                set -e
+
+                echo "Preparing ECS task definition..."
+
+                if [ ! -f ${TASK_FILE} ]; then
+                  echo "ERROR: Task definition file not found"
+                  exit 1
+                fi
+
+                envsubst < ${TASK_FILE} > ${OUTPUT_FILE}
+
+                echo "Updated task definition created:"
+                cat ${OUTPUT_FILE}
+                '''
+            }
+        }
+
+        stage('Archive in Jenkins') {
+            steps {
+                archiveArtifacts artifacts: "${OUTPUT_FILE}", fingerprint: true
+            }
+        }
+
+        stage('Upload to S3') {
+            steps {
+                sh '''
+                set -e
+
+                echo "Uploading task definition to S3..."
+
+                aws s3 cp ${OUTPUT_FILE} s3://${S3_BUCKET}/ecs/${OUTPUT_FILE} \
+                  --region ${AWS_REGION}
+
+                echo "Upload completed"
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline completed successfully"
+        }
+        failure {
+            echo "Pipeline failed"
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
