@@ -1,0 +1,43 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "flask-ecs-app"
+        IMAGE_TAG  = "latest"
+        DOCKERFILE_PATH = "docker/Dockerfile"
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                echo "Building Docker image using ${DOCKERFILE_PATH}"
+                sh """
+                  docker build \
+                  -t ${IMAGE_NAME}:${IMAGE_TAG} \
+                  -f ${DOCKERFILE_PATH} .
+                """
+            }
+        }
+
+        stage('Verify Image') {
+            steps {
+                sh 'docker images | grep flask-ecs-app'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Docker image built successfully'
+        }
+        always {
+            cleanWs()
+        }
+    }
+}
