@@ -1,0 +1,19 @@
+pipeline {
+    agent any
+    stages {
+        stage('Build') {
+            steps {
+                script {
+                    // Dynamically generate tag
+                    TAG = "v${env.BUILD_NUMBER}"
+                    env.IMAGE_TAG = TAG  // save for other stages
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo "Deploying image with tag ${env.IMAGE_TAG}"
+            }
+        }
+    }
+}
