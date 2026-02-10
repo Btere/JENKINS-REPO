@@ -1,0 +1,135 @@
+pipeline {
+agent any
+
+environment {
+    AWS_REGION        = "eu-central-1"
+    AWS_ACCOUNT_ID    = "123456789012"
+    ECR_REPO_NAME     = "flask-web-app"
+    IMAGE_TAG         = "${BUILD_NUMBER}"
+
+    ECR_URI           = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}"
+
+    QA_EC2_HOST       = "qa-ec2-ip"
+    STAGING_EC2_HOST  = "staging-ec2-ip"
+    PROD_EC2_HOST     = "prod-ec2-ip"
+
+    CONTAINER_PORT    = "5000"
+}
+
+stages {
+
+    stage('Checkout Code') {
+        steps {
+            checkout scm
+        }
+    }
+
+    stage('Build Docker Image') {
+        steps {
+            sh """
+              docker build -t ${ECR_REPO_NAME}:${IMAGE_TAG} .
+            """
+        }
+    }
+
+    stage('Authenticate to ECR') {
+        steps {
+            withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-ecr-creds']]) {
+                sh """
+                  aws ecr get-login-password --region ${AWS_REGION} \
+                  | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                """
+            }
+        }
+    }
+
+    stage('Push Image to ECR') {
+        steps {
+            sh """
+              docker tag ${ECR_REPO_NAME}:${IMAGE_TAG} ${ECR_URI}:${IMAGE_TAG}
+              docker push ${ECR_URI}:${IMAGE_TAG}
+            """
+        }
+    }
+
+    stage('Deploy to QA') {
+        steps {
+            sshagent(['ec2-ssh-key']) {
+                sh """
+                  ssh -o StrictHostKeyChecking=no ec2-user@${QA_EC2_HOST} '
+                    docker pull ${ECR_URI}:${IMAGE_TAG}
+                    docker stop flask || true
+                    docker rm flask || true
+                    docker run -d \
+                      --name flask \
+                      -p 80:${CONTAINER_PORT} \
+                      ${ECR_URI}:${IMAGE_TAG}
+                  '
+                """
+            }
+        }
+    }
+
+    stage('QA Validation') {
+        steps {
+            sh "sleep 10"
+            sh "curl http://${QA_EC2_HOST}"
+        }
+    }
+
+    stage('Deploy to Staging') {
+        steps {
+            sshagent(['ec2-ssh-key']) {
+                sh """
+                  ssh ec2-user@${STAGING_EC2_HOST} '
+                    docker pull ${ECR_URI}:${IMAGE_TAG}
+                    docker stop flask || true
+                    docker rm flask || true
+                    docker run -d \
+                      --name flask \
+                      -p 80:${CONTAINER_PORT} \
+                      ${ECR_URI}:${IMAGE_TAG}
+                  '
+                """
+            }
+        }
+    }
+
+    stage('Approve Production') {
+        steps {
+            input message: 'Deploy to PRODUCTION?'
+        }
+    }
+
+    stage('Deploy to Production') {
+        steps {
+            sshagent(['ec2-ssh-key']) {
+                sh """
+                  ssh ec2-user@${PROD_EC2_HOST} '
+                    docker pull ${ECR_URI}:${IMAGE_TAG}
+                    docker stop flask || true
+                    docker rm flask || true
+                    docker run -d \
+                      --name flask \
+                      -p 80:${CONTAINER_PORT} \
+                      ${ECR_URI}:${IMAGE_TAG}
+                  '
+                """
+            }
+        }
+    }
+}
+
+post {
+    success {
+        echo "Deployment successful 🚀"
+    }
+    failure {
+        echo "Deployment failed ❌"
+    }
+    always {
+        cleanWs()
+    }
+}
+
+}
